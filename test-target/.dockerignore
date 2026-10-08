@@ -1,0 +1,17 @@
+# Never send these into the build context
+.git
+.gitignore
+.venv
+venv
+__pycache__
+*.pyc
+.env
+.env.*
+*.pem
+*.key
+.idea
+.vscode
+Dockerfile*
+.dockerignore
+tests
+reports

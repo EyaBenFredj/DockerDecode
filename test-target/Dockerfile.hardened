@@ -1,0 +1,37 @@
+# 1. Supported Python, slim variant (Python 3.9 is end-of-life)
+FROM python:3.13-slim
+
+# 2. Sensible Python defaults for containers
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /app
+
+# 3. Create an unprivileged user with a fixed numeric UID/GID
+RUN groupadd --system --gid 10001 app \
+ && useradd --system --uid 10001 --gid app --no-create-home app
+
+# 4. Install dependencies first, from a pinned requirements file.
+#    Copying only requirements.txt first keeps this layer cached
+#    until the dependencies actually change.
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt \
+ && pip uninstall -y pip
+
+# 5. Copy the app code with COPY (not ADD), owned by root and read-only for the app user
+COPY app.py .
+
+# 6. Drop root privileges (numeric, so Kubernetes can verify it is non-root)
+USER 10001:10001
+
+EXPOSE 5000
+
+# 7. Health check without curl: use the Python that is already in the image
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health')"]
+
+# 8. Production server instead of Flask's development server.
+#    SECRET_KEY is NOT set here; pass it at runtime: docker run -e SECRET_KEY=...
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "app:app"]
